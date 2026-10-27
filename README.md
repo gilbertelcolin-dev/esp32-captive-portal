@@ -61,8 +61,9 @@ kalau tidak OS memilih seluler dan menahan sheet login.
 | Penyimpanan | `/creds.txt` di LittleFS (append), tahan reboot, ±5.000 entri (1.4 MB) |
 | Panel admin | `/admin` (tanpa key), CSV, wipe |
 | Alur login | gagal → gagal → **berhasil** di percobaan ke-3 (per-IP) |
+| Blokir otomatis | setelah percobaan ke-3, IP+MAC klien diblokir (semua request-nya hanya dapat halaman "berhasil"), daftar disimpan di `/blocked.txt` |
 | Anti duplikat | user+pass sama dari IP sama tidak disimpan ulang |
-| Konsol serial | `count`, `csv`, `dump`, `status`, `wipe`, `ui` |
+| Konsol serial | `count`, `csv`/`backup`, `dump`, `status`, `wipe`, `ui`, `blocked`, `unblock` |
 | UI eksternal | semua halaman di `data/*.html`, di-serve dari LittleFS |
 
 ---
@@ -97,6 +98,10 @@ pio run -t upload       # firmware
 pio run -t uploadfs     # UI ke LittleFS (WAJIB kalau habis ubah data/*.html)
 pio device monitor      # 115200 baud
 ```
+
+> **PENTING:** `pio run -t uploadfs` mem-format partisi LittleFS, jadi **kredensial yang sudah
+> tersimpan ikut terhapus**. Selalu tarik dulu sebelum ganti UI:
+> `python3 tools/pull_creds.py /dev/ttyUSB0 creds.csv`
 
 Hasil boot yang benar:
 
@@ -166,7 +171,9 @@ csv     # seluruh isi sebagai CSV (diakhiri ###END###)
 dump    # dibaca manusia
 status  # uptime, klien, jumlah query DNS, besar heap
 ui      # file UI mana yang aktif (LittleFS vs bawaan)
-wipe    # hapus semua
+wipe    # hapus semua (kredensial + daftar blokir)
+blocked # lihat IP yang diblokir
+unblock all | unblock 203.0.113.12
 ```
 
 Format baris: `waktu|username|password|ip|user-agent`
