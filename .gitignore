@@ -1,0 +1,6 @@
+.pio/
+.vscode/
+*.log
+creds*.csv
+live.log
+.DS_Store

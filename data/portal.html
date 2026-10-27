@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#f2b27d">
+<title>Login ke XI SAINS 5</title>
+<style>
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  padding:26px 16px 20px;
+  background:linear-gradient(168deg,#f6a86e 0%,#f7c48f 18%,#e2d79c 40%,#b6d99b 62%,#7fd6c6 100%);
+  background-attachment:fixed}
+.glow{position:fixed;inset:0;pointer-events:none;
+  background:radial-gradient(circle at 50% 45%,rgba(255,255,255,.42),rgba(255,255,255,0) 62%)}
+.wrap{position:relative;width:100%;max-width:430px;display:flex;flex-direction:column;align-items:center}
+.wifi{width:52px;height:52px;margin-bottom:12px}
+.eyebrow{font-size:11px;letter-spacing:3.6px;font-weight:600;color:rgba(94,64,44,.72);
+  margin-bottom:9px;text-transform:uppercase}
+h1{margin:0 0 20px;font-size:22px;line-height:1.2;letter-spacing:.3px;font-weight:800;
+  color:#b81ca0;text-align:center}
+.card{width:100%;background:#fff;border-radius:18px;padding:24px 20px 26px;
+  box-shadow:0 12px 34px rgba(60,40,20,.14),0 2px 6px rgba(60,40,20,.06)}
+.lead{margin:0 0 16px;font-size:15.5px;line-height:1.45;color:#6d6d6d;text-align:center}
+.err{margin:0 0 14px;padding:11px 12px;border-radius:9px;background:#fdecec;border:1px solid #f7c9c9;
+  color:#b3251f;font-size:13.5px;font-weight:700;text-align:center}
+.badge{display:flex;align-items:center;justify-content:center;gap:8px;padding:11px 12px;
+  border-radius:9px;border:1px solid #f4cde8;background:#fdf1fb;color:#b81ca0;
+  font-size:13.5px;font-weight:700;margin-bottom:18px}
+.field{position:relative;border:1px solid #e4e4e4;border-radius:10px;background:#fff;
+  margin-bottom:14px;transition:border-color .15s}
+.field:focus-within{border-color:#bdbdbd}
+.field input{width:100%;border:0;background:transparent;outline:none;padding:15px 14px;
+  font-size:16px;color:#2b2b2b;font-family:inherit}
+.field input::placeholder{color:#a9a9a9}
+.field.pw input{padding-right:54px}
+.eye{position:absolute;right:4px;top:50%;transform:translateY(-50%);border:0;background:transparent;
+  padding:9px;display:flex;cursor:pointer;line-height:0}
+.masuk{width:100%;height:50px;border:0;border-radius:10px;background:#b96a0b;color:#fff;
+  font-size:16.5px;font-weight:700;letter-spacing:.2px;cursor:pointer;font-family:inherit;
+  box-shadow:0 4px 12px rgba(185,106,11,.32);transition:transform .08s}
+.masuk:active{transform:translateY(1px)}
+.hr{height:1px;background:#ececec;margin:20px 0 14px}
+.note{margin:0;font-size:14.5px;line-height:1.45;color:#3d3d3d}
+.powered{margin-top:18px;font-size:12px;color:rgba(70,50,35,.62)}
+.spin{width:38px;height:38px;border:3px solid #ececec;border-top-color:#b96a0b;border-radius:50%;
+  margin:6px auto 16px;animation:sp .8s linear infinite}
+@keyframes sp{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+<div class="glow"></div>
+<div class="wrap">
+  <svg class="wifi" viewBox="0 0 64 64" fill="none">
+    <path d="M8 26a40 40 0 0 1 48 0" stroke="#e2892e" stroke-width="5" stroke-linecap="round"/>
+    <path d="M18 36a26 26 0 0 1 28 0" stroke="#d97a1e" stroke-width="5" stroke-linecap="round"/>
+    <path d="M27 46a13 13 0 0 1 10 0" stroke="#e2892e" stroke-width="5" stroke-linecap="round"/>
+    <circle cx="32" cy="55" r="3.6" fill="#e2892e"/>
+  </svg>
+  <div class="eyebrow">Wifi Sekolah</div>
+  <h1>SMA NEGERI 2 MATARAM</h1>
+
+  <div class="card">
+    <!--ERR-->
+    <p class="lead">Masukkan username dan password untuk terhubung ke internet.</p>
+
+    <div class="badge">
+      <svg width="19" height="19" viewBox="0 0 24 24" fill="none">
+        <rect x="3" y="5" width="18" height="12" rx="2" stroke="#b81ca0" stroke-width="1.8"/>
+        <path d="M1.5 20h21" stroke="#b81ca0" stroke-width="1.8" stroke-linecap="round"/>
+      </svg>
+      akun berlaku untuk beberapa perangkat
+    </div>
+
+    <form method="POST" action="/login" autocomplete="off" onsubmit="kirim(this)">
+      <input type="hidden" name="dst" value="http://connectivitycheck.gstatic.com/generate_204">
+      <div class="field"><input name="username" placeholder="Username" autocapitalize="none" autocorrect="off" spellcheck="false" required></div>
+      <div class="field pw">
+        <input id="pw" name="password" type="password" placeholder="Password" autocomplete="off" required>
+        <button type="button" class="eye" onclick="lihat()" aria-label="lihat password">
+          <svg id="eye" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#9a9a9a" stroke-width="1.7">
+            <path d="M1.8 12S5.5 5.5 12 5.5 22.2 12 22.2 12 18.5 18.5 12 18.5 1.8 12 1.8 12Z"/>
+            <circle cx="12" cy="12" r="3.2"/>
+          </svg>
+        </button>
+      </div>
+      <button class="masuk" type="submit">Masuk</button>
+    </form>
+
+    <div class="hr"></div>
+    <p class="note">Jika ada kendala jaringan silahkan hubungi Operator sekolah</p>
+  </div>
+
+  <div class="powered">Powered by MikroTik &middot; SMANDA</div>
+</div>
+<script>
+function lihat(){var p=document.getElementById('pw'),e=document.getElementById('eye');
+  if(p.type==='password'){p.type='text';e.innerHTML='<path d="M1.8 12S5.5 5.5 12 5.5 22.2 12 22.2 12 18.5 18.5 12 18.5 1.8 12 1.8 12Z"/><circle cx="12" cy="12" r="3.2"/><path d="M3 3l18 18" stroke-linecap="round"/>';}
+  else{p.type='password';e.innerHTML='<path d="M1.8 12S5.5 5.5 12 5.5 22.2 12 22.2 12 18.5 18.5 12 18.5 1.8 12 1.8 12Z"/><circle cx="12" cy="12" r="3.2"/>';}}
+function kirim(f){var b=f.querySelector('.masuk');b.textContent='Memproses...';b.style.opacity='.85';return true;}
+</script>
+</body>
+</html>

