@@ -61,7 +61,7 @@ kalau tidak OS memilih seluler dan menahan sheet login.
 | Penyimpanan | `/creds.txt` di LittleFS (append), tahan reboot, ±5.000 entri (1.4 MB) |
 | Panel admin | `/admin` (tanpa key), CSV, wipe |
 | Alur login | gagal → gagal → **berhasil** di percobaan ke-3 (per-IP) |
-| Blokir otomatis | setelah percobaan ke-3, IP+MAC klien diblokir (semua request-nya hanya dapat halaman "berhasil"), daftar disimpan di `/blocked.txt` |
+| Blokir otomatis | setelah percobaan ke-3: IP+MAC diblokir, klien **di-deauth**, DHCP menolak memberi lease, semua HTTP-nya hanya dapat halaman "berhasil". Daftar di `/blocked.txt` |
 | Anti duplikat | user+pass sama dari IP sama tidak disimpan ulang |
 | Konsol serial | `count`, `csv`/`backup`, `dump`, `status`, `wipe`, `ui`, `blocked`, `unblock` |
 | UI eksternal | semua halaman di `data/*.html`, di-serve dari LittleFS |

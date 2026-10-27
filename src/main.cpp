@@ -20,6 +20,7 @@
 #include "lwip/ip_addr.h"
 #include "dhcpserver/dhcpserver.h"
 #include "esp_netif.h"
+#include "esp_wifi.h"
 
 /* ------------------------- KONFIGURASI ---------------------------- */
 #define AP_SSID            "SMAN 2 MATARAM"
@@ -399,6 +400,34 @@ bool isBlocked(IPAddress ip) {
   return false;
 }
 
+bool isBlockedMac(const uint8_t *mac) {
+  char m[18];
+  snprintf(m, sizeof(m), "%02X:%02X:%02X:%02X:%02X:%02X",
+           mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+  for (auto &b : blockedList) if (b.mac == m) return true;
+  return false;
+}
+
+/* Tendang klien yang sudah diblokir: deauth + tidak diberi lease DHCP.
+   Efeknya di HP: Wi-Fi "SMAN 2 MATARAM" langsung lepas, muncul
+   "Gagal terhubung"/pindah ke jaringan lain, dan tidak bisa balik lagi.  */
+unsigned long lastKick = 0;
+
+void kickBlockedClients() {
+  if (millis() - lastKick < 800) return;
+  lastKick = millis();
+  if (blockedList.empty()) return;
+  wifi_sta_list_t list;
+  if (esp_wifi_ap_get_sta_list(&list) != ESP_OK) return;
+  for (int i = 0; i < list.num; i++) {
+    uint8_t *m = list.sta[i].mac;
+    if (!isBlockedMac(m)) continue;
+    Serial.printf("[KICK] klien terblokir nyambung lagi: %02X:%02X:%02X:%02X:%02X:%02X\n",
+                  m[0], m[1], m[2], m[3], m[4], m[5]);
+    esp_wifi_deauth_sta(0);        // tendang semua STA (IDF 4.4 tidak punya deauth per-MAC)
+  }
+}
+
 void addBlock(IPAddress ip, const String &lastUser) {
   if (isBlocked(ip)) return;
   if (blockedList.size() >= 60) blockedList.erase(blockedList.begin());
@@ -565,6 +594,11 @@ void dhcpTick() {
     p += 2 + l;
   }
   if (mtype != 1 && mtype != 3) return;         // DISCOVER / REQUEST
+  if (isBlockedMac(mac)) {                      // klien diblokir: tidak dapat IP
+    Serial.printf("[KICK] DHCP ditolak untuk %02X:%02X:%02X:%02X:%02X:%02X\n",
+                  mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+    return;
+  }
 
   uint8_t host = leaseHostFor(mac);
   uint8_t rep[400];
@@ -707,6 +741,9 @@ void handleLogin() {
     Serial.printf("[OK] percobaan ke-3 dari %s -> halaman BERHASIL\n", cip.toString().c_str());
     server.sendHeader("Cache-Control", "no-store");
     server.send(200, "text/html; charset=utf-8", ui("/success.html", PAGE_OK));
+    delay(400);                 // biar halaman "Berhasil" sempat terkirim utuh
+    esp_wifi_deauth_sta(0);     // putus koneksi si klien begitu halaman berhasil terkirim
+    Serial.println("[KICK] deauth setelah halaman berhasil");
     return;
   }
 
@@ -1045,6 +1082,8 @@ void loop() {
   dhcpTick();
   server.handleClient();
   ledTick();
+
+  kickBlockedClients();
 
   /* laporan klien: bukti HP benar-benar associate + dapat IP */
   static int lastSta = -1;
